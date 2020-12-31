@@ -45,10 +45,11 @@ var blocks = [
 ];
 
 // 敵の情報
-var enemyX = 550;
-var enemyY = 0;
-var enemyIsJump = true;
-var enemyVy = 0;
+var enemies = [
+  { x: 550, y: 0, isJump: true, vy: 0 },
+  { x: 750, y: 0, isJump: true, vy: 0 },
+  { x: 300, y: 180, isJump: true, vy: 0 },
+];
 
 // ロード時に画面描画の処理が実行されるようにする
 window.addEventListener("load", update);
@@ -58,47 +59,55 @@ function update() {
   // 画面全体をクリア
   ctx.clearRect(0, 0, 640, 480);
 
-  // アップデート後の敵の座標
-  var updatedEnemyX = enemyX;
-  var updatedEnemyY = enemyY;
+  // 敵情報ごとに、位置座標を更新する
+  for (const enemy of enemies) {
+    // アップデート後の敵の座標
+    var updatedEnemyX = enemy.x;
+    var updatedEnemyY = enemy.y;
+    var updatedEnemyInJump = enemy.isJump;
+    var updatedEnemyVy = enemy.vy;
 
-  // 敵は左に固定の速度で移動するようにする
-  updatedEnemyX = updatedEnemyX - 1;
+    // 敵は左に固定の速度で移動するようにする
+    updatedEnemyX = updatedEnemyX - 1;
 
-  // 敵の場合にも、主人公の場合と同様にジャンプか否かで分岐
-  if (enemyIsJump) {
-    // ジャンプ中は敵の速度分だけ追加する
-    updatedEnemyY = enemyY + enemyVy;
+    // 敵の場合にも、主人公の場合と同様にジャンプか否かで分岐
+    if (enemy.isJump) {
+      // ジャンプ中は敵の速度分だけ追加する
+      updatedEnemyY = enemy.y + enemy.vy;
 
-    // 速度を固定分だけ増加させる
-    enemyVy = enemyVy + 0.5;
+      // 速度を固定分だけ増加させる
+      updatedEnemyVy = enemy.vy + 0.5;
 
-    // ブロックを取得する
-    const blockTargetIsOn = getBlockTargetIsOn(
-      enemyX,
-      enemyY,
-      updatedEnemyX,
-      updatedEnemyY
-    );
+      // ブロックを取得する
+      const blockTargetIsOn = getBlockTargetIsOn(
+        enemy.x,
+        enemy.y,
+        updatedEnemyX,
+        updatedEnemyY
+      );
 
-    // ブロックが取得できた場合には、そのブロックの上に立っているよう見えるように着地させる
-    if (blockTargetIsOn !== null) {
-      updatedEnemyY = blockTargetIsOn.y - 32;
-      enemyIsJump = false;
+      // ブロックが取得できた場合には、そのブロックの上に立っているよう見えるように着地させる
+      if (blockTargetIsOn !== null) {
+        updatedEnemyY = blockTargetIsOn.y - 32;
+        updatedEnemyInJump = false;
+      }
+    } else {
+      // ブロックの上にいなければジャンプ中の扱いとして初期速度0で落下するようにする
+      if (
+        getBlockTargetIsOn(enemy.x, enemy.y, updatedEnemyX, updatedEnemyY) ===
+        null
+      ) {
+        updatedEnemyInJump = true;
+        updatedEnemyVy = 0;
+      }
     }
-  } else {
-    // ブロックの上にいなければジャンプ中の扱いとして初期速度0で落下するようにする
-    if (
-      getBlockTargetIsOn(enemyX, enemyY, updatedEnemyX, updatedEnemyY) === null
-    ) {
-      enemyIsJump = true;
-      enemyVy = 0;
-    }
+
+    // 算出した結果に変更する
+    enemy.x = updatedEnemyX;
+    enemy.y = updatedEnemyY;
+    enemy.isJump = updatedEnemyInJump;
+    enemy.vy = updatedEnemyVy;
   }
-
-  // 算出した結果に変更する
-  enemyX = updatedEnemyX;
-  enemyY = updatedEnemyY;
 
   // 更新後の座標
   var updatedX = x;
@@ -178,28 +187,22 @@ function update() {
 
   // すでにゲームオーバーとなっていない場合のみ敵とのあたり判定を行う必要がある
   if (!isGameOver) {
-    // 更新後の主人公の位置情報と、敵の位置情報とが重なっているかをチェックする
-    var isHit = isAreaOverlap(
-      updatedX,
-      updatedY,
-      32,
-      32,
-      updatedEnemyX,
-      updatedEnemyY,
-      32,
-      32
-    );
+    // 敵情報ごとに当たり判定を行う
+    for (const enemy of enemies) {
+      // 更新後の主人公の位置情報と、敵の位置情報とが重なっているかをチェックする
+      var isHit = isAreaOverlap(x, y, 32, 32, enemy.x, enemy.y, 32, 32);
 
-    if (isHit) {
-      if (isJump && vy > 0) {
-        // ジャンプしていて、落下している状態で敵にぶつかった場合には
-        // 敵を消し去る(見えない位置に移動させる)とともに、上向きにジャンプさせる
-        vy = -7;
-        enemyY = 500;
-      } else {
-        // ぶつかっていた場合にはゲームオーバーとし、上方向の初速度を与える
-        isGameOver = true;
-        vy = -10;
+      if (isHit) {
+        if (isJump && vy > 0) {
+          // ジャンプしていて、落下している状態で敵にぶつかった場合には
+          // 敵を消し去る(見えない位置に移動させる)とともに、上向きにジャンプさせる
+          vy = -7;
+          enemy.y = 500;
+        } else {
+          // ぶつかっていた場合にはゲームオーバーとし、上方向の初速度を与える
+          isGameOver = true;
+          vy = -10;
+        }
       }
     }
   }
@@ -207,7 +210,11 @@ function update() {
   // 敵の画像を表示
   var enemyImage = new Image();
   enemyImage.src = "../images/character-02/base.png";
-  ctx.drawImage(enemyImage, enemyX, enemyY, 32, 32);
+
+  // 敵情報ごとに当たり判定を行う
+  for (const enemy of enemies) {
+    ctx.drawImage(enemyImage, enemy.x, enemy.y, 32, 32);
+  }
 
   // 主人公の画像を表示
   var image = new Image();
